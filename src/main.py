@@ -77,7 +77,7 @@ class Group:
     # from config
     priority: int = 100
     source: str = None
-    loop: bool = True
+    loop: bool = False
 
     schedule_at: str | int | datetime = 0
 

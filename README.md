@@ -65,7 +65,7 @@ Default to current date and time. If you specify an integer (in seconds) it is t
 
 `priority: int = 100` smaller integer means higher priority.
 
-`loop: bool = True` loop the group
+`loop: bool = False` loop the group
 
 `start_at: int | str = 0`: number of seconds (from the base schedule `start_at`) or an absolute iso datetime
 

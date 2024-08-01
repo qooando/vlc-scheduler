@@ -2,7 +2,7 @@
 groups:
   - priority: 100
     source: "./videos/background/acqua.mp4"
-    #    loop: true
+    loop: true
     clip_loop: true
 
 #  - priority: 100
