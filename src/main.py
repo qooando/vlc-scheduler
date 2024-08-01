@@ -299,7 +299,7 @@ class VideoScheduler:
         logger.info(f"Play clip {clip.path}")
         self.vlc_client.play(clip.vlc_playlist_id, clip.cursor)
         self.vlc_client.seek(clip.cursor)
-        self.vlc_client.loop(clip.loop)
+        self.vlc_client.repeat(clip.loop)
         self.clip_on_air = clip
 
     async def _check_clip_on_air(self):
