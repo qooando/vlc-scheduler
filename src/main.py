@@ -227,8 +227,8 @@ class VideoScheduler:
                     loop=g.clip_loop
                 )
                 # loop
-                clip.last_clip_in_parent = i == clip_n - 1
-                if g.clips_are_sequential and g.loop and clip.last_clip_in_parent:
+                clip.last_clip_in_parent = (i == clip_n - 1)
+                if g.loop and clip.last_clip_in_parent:
                     clip.reschedule_parent = True
 
                 g.clips.append(clip)
