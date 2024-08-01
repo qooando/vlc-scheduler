@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import glob
 import os
 from asyncio import PriorityQueue, QueueEmpty
-from dataclasses import dataclass, Field, field, asdict
+from dataclasses import dataclass, Field, field, asdict, replace
 
 import yaml
 import logging
@@ -59,9 +59,6 @@ class Clip:
             return self.priority < other.priority
         else:
             return self.schedule_at < other.schedule_at
-
-    def clone(self):
-        return Clip(**asdict(self))
 
 
 @dataclass
@@ -162,9 +159,8 @@ class VideoScheduler:
             if group.clips_are_timed:
                 for c in group.clips:
                     logger.debug(f"Schedule timed clip: {c}")
-                    if c.schedule_at:
-                        c = c.clone()
-                        c.schedule_at += delta_schedule_at
+                    if c.schedule_at and delta_schedule_at:
+                        c = replace(c, schedule_at=c.schedule_at + delta_schedule_at)
                     s = self.clip_start_timestamp_schedule.put(
                         [c.schedule_at, c.priority, c.id, c]
                     )
@@ -172,14 +168,12 @@ class VideoScheduler:
             elif group.clips_are_sequential:
                 for c in group.clips:
                     logger.debug(f"Schedule sequential clip: {c}")
-                    if c.schedule_at:
-                        c = c.clone()
-                        c.schedule_at += delta_schedule_at
-                    for c in group.clips:
-                        s = self.clip_priority_schedule.put(
-                            [c.priority, c.id, c]
-                        )
-                        subtasks.append(s)
+                    if c.schedule_at and delta_schedule_at:
+                        c = replace(c, schedule_at=c.schedule_at + delta_schedule_at)
+                    s = self.clip_priority_schedule.put(
+                        [c.priority, c.id, c]
+                    )
+                    subtasks.append(s)
             else:
                 raise Exception(f"Unknown group clips type")
             if subtasks:

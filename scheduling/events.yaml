@@ -1,10 +1,19 @@
 #schedule_at: 0
 groups:
+  # one shot
+  #  - priority: 0
+  #    source: "./videos/timed/scariche.mp4"
+  #    schedule_at: 5
+  #    clip_period: 2
+  #    loop: false
+  # repeated
   - priority: 0
     source: "./videos/timed/scariche.mp4"
     schedule_at: 5
     clip_period: 2
-    loop: false
+    clip_interval: 5
+    loop: true
+
 #    clip_loop: false
 #    loop: false
 #    clip_period: 6
