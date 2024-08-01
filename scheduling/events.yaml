@@ -11,7 +11,7 @@ groups:
     source: "./videos/timed/scariche.mp4"
     schedule_at: 5
     clip_period: 2
-    clip_interval: 5
+    clip_interval: 10
     loop: true
 
 #    clip_loop: false

@@ -1,11 +1,11 @@
 #schedule_at: 5
 groups:
-  - priority: 100
-    source: "./videos/background/acqua.mp4"
-    loop: true
-    clip_loop: true
-
 #  - priority: 100
-#    source: "./videos/background/**.mp4"
+#    source: "./videos/background/acqua.mp4"
 #    loop: true
-#    clip_period: 2
+#    clip_loop: true
+
+  - priority: 100
+    source: "./videos/background/**.mp4"
+    loop: true
+    clip_period: 2

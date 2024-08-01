@@ -54,7 +54,9 @@ A schedule file MUST contain `groups` and their parameters.
 
 Other global parameters are:
 
-`schedule_at: str = now()` start reference time for this schedule, used as base for any other relative time in the file.
+`schedule_at: int | str = now()` start reference time for this schedule, used as base for any other relative time in the
+file. Can be relative to current time (using integer) or absolute (string).
+
 Default to current date and time. If you specify an integer (in seconds) it is the delay from now.
 
 ### Source parameters
