@@ -4,7 +4,7 @@ import typing
 from datetime import datetime, timedelta
 import glob
 import os
-from asyncio import PriorityQueue
+from asyncio import PriorityQueue, QueueEmpty
 from dataclasses import dataclass, Field, field, asdict
 
 import yaml
@@ -51,12 +51,16 @@ class Clip:
     cursor: int = 0
     cursor_stop_at: float = None
     vlc_playlist_id: int = None
+    loop: bool = False
 
     def __lt__(self, other):
         if self.schedule_at != other.schedule_at:
             return self.priority < other.priority
         else:
             return self.schedule_at < other.schedule_at
+
+    def clone(self):
+        return Clip(**asdict(self))
 
 
 @dataclass
@@ -86,6 +90,7 @@ class Group:
     # on_air_period: int | None = None
     clip_period: int | timedelta | None = None  # how many seconds we play of the clips
     clip_interval: int | timedelta | None = None  # interval between sequential clip starts
+    clip_loop: bool = False
 
     #
     # discard_if_preempted: bool = False
@@ -97,6 +102,9 @@ class Group:
             return self.priority < other.priority
         else:
             return self.schedule_at < other.schedule_at
+
+    def clone(self):
+        return Clip(**asdict(self))
 
 
 class VideoScheduler:
@@ -112,6 +120,7 @@ class VideoScheduler:
         self.clip_on_air: Clip | None = None
         self.clip_on_wait: [Clip] = []
         self.vlc_clip_playlist_id: {} = {}
+        self.polling_time = self.config["scheduling"]["polling_time"]
 
     async def load_scheduling(self):
         path = self.config["scheduling"]["path"]
@@ -136,25 +145,40 @@ class VideoScheduler:
         await self._postprocess_group_after_load(group)
         await self._schedule_group(group)
 
-    async def _schedule_group(self, group: Group):
+    async def _schedule_group(self, group: Group, new_schedule_at: datetime = None):
         now = datetime.now()
         if group.schedule_at and now < group.schedule_at:
             await self.group_start_timestamp_schedule.put(
                 tuple([group.schedule_at, group.priority, group.id, group])
             )
         else:
+            subtasks = []
+            delta_schedule_at = None
+            if new_schedule_at:
+                delta_schedule_at = new_schedule_at - group.schedule_at
             if group.clips_are_timed:
-                subtasks = [self.clip_start_timestamp_schedule.put(
-                    [c.schedule_at, c.priority, c.id, c]
-                ) for c in group.clips]
-                await asyncio.gather(*subtasks)
+                for c in group.clips:
+                    if c.schedule_at:
+                        c = c.clone()
+                        c.schedule_at += delta_schedule_at
+                    s = self.clip_start_timestamp_schedule.put(
+                        [c.schedule_at, c.priority, c.id, c]
+                    )
+                    subtasks.append(s)
             elif group.clips_are_sequential:
-                subtasks = [self.clip_priority_schedule.put(
-                    [c.priority, c.id, c]
-                ) for c in group.clips]
-                await asyncio.gather(*subtasks)
+                for c in group.clips:
+                    if c.schedule_at:
+                        c = c.clone()
+                        c.schedule_at += delta_schedule_at
+                    for c in group.clips:
+                        s = self.clip_priority_schedule.put(
+                            [c.priority, c.id, c]
+                        )
+                        subtasks.append(s)
             else:
                 raise Exception(f"Unknown group clips type")
+            if subtasks:
+                await asyncio.gather(*subtasks)
 
     async def _postprocess_group_after_load(self, g):
         # fix times
@@ -200,7 +224,8 @@ class VideoScheduler:
                     schedule_at=schedule_clip_at,
                     vlc_playlist_id=vlc_playlist_id,
                     cursor=0,
-                    cursor_stop_at=g.clip_period.total_seconds() if g.clip_period else None
+                    cursor_stop_at=g.clip_period.total_seconds() if g.clip_period else None,
+                    loop=g.clip_loop
                 )
                 # loop
                 if g.clips_are_sequential and g.loop and i == clip_n - 1:
@@ -208,63 +233,69 @@ class VideoScheduler:
 
                 g.clips.append(clip)
 
-    async def scheduler_task(self):
+    async def task_schedule_clips(self):
         try:
             while self.active:
-                self.active = await self._schedule_tick()
-                await asyncio.sleep(0.5)
+                if self.clip_on_air:
+                    await self._check_clip_on_air()
+                next_clip = await self._get_next_clip_to_schedule()
+                if next_clip is not None and next_clip is not self.clip_on_air:
+                    await self._play_clip(next_clip)
+
+                await asyncio.sleep(self.polling_time or 0.5)
         finally:
             self.vlc_client.stop()
 
-    async def _schedule_tick(self):
+    async def task_schedule_groups(self):
+        while True:
+            now = datetime.now()
+
+            try:
+                _next = self.group_start_timestamp_schedule.get_nowait()
+                while _next is not None and now >= _next[0]:
+                    await self._schedule_group(_next[3])
+                    _next = self.group_start_timestamp_schedule.get_nowait()
+                if _next is not None:
+                    await self.group_start_timestamp_schedule.put(_next)
+            except QueueEmpty as e:
+                _next = None
+
+            await asyncio.sleep(self.polling_time or 0.5)
+
+    async def _get_next_clip_to_schedule(self):
+        next_clip = self.clip_on_air
         now = datetime.now()
-        _next = self.group_start_timestamp_schedule._queue[0] \
-            if not self.group_start_timestamp_schedule.empty() else None
-        while _next is not None and now >= _next[0]:
-            await self.group_start_timestamp_schedule.get()
-            await self._schedule_group(_next[3])
-            _next = self.group_start_timestamp_schedule._queue[0] \
-                if not self.group_start_timestamp_schedule.empty() else None
+        candidate_clip = None
 
-        schedule_next = self.clip_on_air is None
+        try:
+            _, _, _, candidate_clip = _next = self.clip_start_timestamp_schedule.get_nowait()
+            while now >= candidate_clip.schedule_at:
+                if next_clip is None or candidate_clip.priority <= next_clip.priority:
+                    next_clip = candidate_clip
+                _, _, _, candidate_clip = _next = self.clip_start_timestamp_schedule.get_nowait()
+            await self.clip_start_timestamp_schedule.put(_next)
+        except QueueEmpty as e:
+            pass
 
-        if self.clip_on_air:
-            schedule_next = not (await self._check_clip_on_air())
+        if next_clip is not self.clip_on_air:
+            return next_clip
 
-        next_clip = None
+        try:
+            _, _, candidate_clip = _next = self.clip_priority_schedule.get_nowait()
+            while next_clip is None or candidate_clip.priority < next_clip.priority:
+                next_clip = candidate_clip
+                _, _, candidate_clip = _next = self.clip_priority_schedule.get_nowait()
+            await self.clip_priority_schedule.put(_next)
+        except QueueEmpty as e:
+            pass
 
-        # preemption by start timestamp and priority
-        if next_clip is None and not self.clip_start_timestamp_schedule.empty():
-            _next = self.clip_start_timestamp_schedule._queue[0] \
-                if not self.clip_start_timestamp_schedule.empty() else None
-            while _next is not None and now >= _next[0]:
-                # set as next clip if priority is higher or equal
-                if self.clip_on_air is None or _next[3].priority <= self.clip_on_air.priority:
-                    next_clip = _next[3]  # preemption
-                    schedule_next = True
-                # remove from queue
-                await self.clip_start_timestamp_schedule.get()
-                _next = self.clip_start_timestamp_schedule._queue[0] \
-                    if not self.clip_start_timestamp_schedule.empty() else None
-
-        if not schedule_next:
-            return True
-
-        if next_clip is None and not self.clip_priority_schedule.empty():
-            _next = await self.clip_priority_schedule.get()
-            next_clip = _next[2]
-
-        if next_clip is None:
-            return True
-
-        await self._play_clip(next_clip)
-
-        return True
+        return next_clip
 
     async def _play_clip(self, clip: Clip):
         logger.info(f"Play clip {clip.path}")
         self.vlc_client.play(clip.vlc_playlist_id, clip.cursor)
         self.vlc_client.seek(clip.cursor)
+        self.vlc_client.loop(clip.loop)
         self.clip_on_air = clip
 
     async def _check_clip_on_air(self):
@@ -287,7 +318,14 @@ class VideoScheduler:
 
         if stop:
             if c.reschedule_parent:
-                await self._schedule_group(c.parent)
+                if c.schedule_at:
+                    await self._schedule_group(c.parent, c.schedule_at + c.parent.clip_interval)
+                else:
+                    await self._schedule_group(c.parent)
+                    # fixme rescheduling should duplicate clip with newer one
+                    #  set reschedule_parent false
+                    #  provide also a new offset for timed scheduling
+                    #  add repeats n times
 
         return not stop
 
@@ -319,7 +357,8 @@ class VideoScheduler:
         self.vlc_client.repeat(False)
 
         await self.load_scheduling()
-        self.tasks.append(self.scheduler_task())
+        self.tasks.append(self.task_schedule_groups())
+        self.tasks.append(self.task_schedule_clips())
 
         # self.tasks.append(self.schedule_clip())
 

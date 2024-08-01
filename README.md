@@ -75,6 +75,8 @@ Default to current date and time. If you specify an integer (in seconds) it is t
 
 `clip_period: int` how many seconds of each clip must be
 
+`clip_loop: bool = False` repeat clips
+
 ## Troubleshooting
 
 ### Black screen flashes between clips

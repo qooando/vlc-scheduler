@@ -1,0 +1,26 @@
+schedule_at: 0
+groups:
+  - priority: 0
+    source: "./videos/timed/**.mp4"
+#    clip_period: 6
+    schedule_at: 3
+#    clip_interval: 1
+#    loop: true
+#    clip_loop: true
+
+#  - source: "./video/background/**.mp4"
+#    layer: 0
+#    loop: true
+#    on_air_period: 10
+#    remember_position: true
+#  - source: "./video/background/**.mp4"
+#    layer: 1
+#    loop: true
+#    on_air_period: 10
+#    remember_position: true
+#    start:
+#    end:
+#
+#clips:
+
+

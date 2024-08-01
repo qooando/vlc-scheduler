@@ -7,10 +7,11 @@ vlc:
   options:
     - "--no-video-title-show"
   #    - "--start-paused"
+#    - "--fullscreen"
   path:
     win: 'C:\Program Files\VideoLAN\VLC\vlc.exe'
     macos: '/Applications/VLC.app/Contents/MacOS/VLC'
     linux: '/usr/bin/vlc'
 scheduling:
   path: ./scheduling/**.yaml
-
+  polling_time: 0.1
