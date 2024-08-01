@@ -47,6 +47,7 @@ class Clip:
     path: str = None
     parent: typing.Any = None
 
+    last_clip_in_parent: bool = False
     reschedule_parent: bool = False
     cursor: int = 0
     cursor_stop_at: float = None
@@ -76,7 +77,7 @@ class Group:
     # from config
     priority: int = 100
     source: str = None
-    loop: bool = False
+    loop: bool = True
 
     schedule_at: str | int | datetime = 0
 
@@ -232,7 +233,8 @@ class VideoScheduler:
                     loop=g.clip_loop
                 )
                 # loop
-                if g.clips_are_sequential and g.loop and i == clip_n - 1:
+                clip.last_clip_in_parent = i == clip_n - 1
+                if g.clips_are_sequential and g.loop and clip.last_clip_in_parent:
                     clip.reschedule_parent = True
 
                 g.clips.append(clip)
@@ -244,6 +246,8 @@ class VideoScheduler:
                     await self._check_clip_on_air()
                 next_clip = await self._get_next_clip_to_schedule()
                 if next_clip is not None and next_clip is not self.clip_on_air:
+                    if self.clip_on_air:
+                        await self._on_stop_clip(self.clip_on_air)
                     await self._play_clip(next_clip)
 
                 await asyncio.sleep(self.polling_time or 0.5)
@@ -302,6 +306,18 @@ class VideoScheduler:
         self.vlc_client.repeat(clip.loop)
         self.clip_on_air = clip
 
+    async def _on_stop_clip(self, clip: Clip):
+        self.vlc_client.pause()
+        if clip.reschedule_parent:
+            if clip.schedule_at:
+                await self._schedule_group(clip.parent, clip.schedule_at + clip.parent.clip_interval)
+            else:
+                await self._schedule_group(clip.parent)
+        elif clip.last_clip_in_parent:
+            logger.debug(f"Group played the last clip (no loop): {clip.parent}")
+
+            # fixme: add repeats n times
+
     async def _check_clip_on_air(self):
         c = self.clip_on_air
         vlc_status = self.vlc_client.status()
@@ -321,12 +337,7 @@ class VideoScheduler:
             stop = True
 
         if stop:
-            if c.reschedule_parent:
-                if c.schedule_at:
-                    await self._schedule_group(c.parent, c.schedule_at + c.parent.clip_interval)
-                else:
-                    await self._schedule_group(c.parent)
-                    # fixme: add repeats n times
+            await self._on_stop_clip(c)
 
         return not stop
 
