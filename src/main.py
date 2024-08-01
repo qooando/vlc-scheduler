@@ -308,6 +308,7 @@ class VideoScheduler:
 
     async def _on_stop_clip(self, clip: Clip):
         self.vlc_client.pause()
+        self.clip_on_air = None
         if clip.reschedule_parent:
             if clip.schedule_at:
                 await self._schedule_group(clip.parent, clip.schedule_at + clip.parent.clip_interval)
