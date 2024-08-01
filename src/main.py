@@ -200,7 +200,7 @@ class VideoScheduler:
                     schedule_at=schedule_clip_at,
                     vlc_playlist_id=vlc_playlist_id,
                     cursor=0,
-                    cursor_stop_at=g.clip_period.total_seconds()
+                    cursor_stop_at=g.clip_period.total_seconds() if g.clip_period else None
                 )
                 # loop
                 if g.clips_are_sequential and g.loop and i == clip_n - 1:
@@ -276,10 +276,11 @@ class VideoScheduler:
 
         if not stop and vlc_status["state"] == "stopped":
             c.cursor = 0
-            c.cursor_stop_at = c.parent.clip_period.total_seconds()
+            if c.parent.clip_period:
+                c.cursor_stop_at = c.parent.clip_period.total_seconds()
             stop = True
 
-        if not stop and c.cursor >= c.cursor_stop_at:
+        if not stop and c.cursor_stop_at and c.cursor >= c.cursor_stop_at:
             c.cursor_stop_at += c.parent.clip_period.total_seconds()
             self.vlc_client.pause()
             stop = True
