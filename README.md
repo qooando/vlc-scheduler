@@ -4,9 +4,17 @@ A python-based vlc scheduler for local videos. It was inspired by https://github
 
 ## Features
 
-- Schedule videos based on time and priorities
-- Play sequential stream
+- Schedule images and videos based on priorities and times
+- Play sequential stream, interrupt them with timed events
 - Schedule and play video at specific times
+
+## TODO
+
+- [ ] Repeat group up to N times
+- [ ] Repeat every clip up to N times
+- [ ] Pause and resume an preempted lower-priority video
+- [ ] Stop a group at a specified time (absolute max time or relative to start time)
+- [ ] Improve performance
 
 ## Fast start (linux)
 
@@ -79,8 +87,23 @@ Default to current date and time. If you specify an integer (in seconds) it is t
 
 `clip_loop: bool = False` repeat clips
 
-## Troubleshooting
+## VLC
 
-### Black screen flashes between clips
+### Tweaks
 
-It is mitigated settings vlc to real time scheduler in advanced configuration.
+### Troubleshooting
+
+#### Black screen flashes between clips
+
+As mitigation, check real time priority in VLC settings
+```
+VLC > Tools > Settings > Advanced Settings > Advanced > Allow real-time-priority
+```
+
+#### VLC logo between clips
+
+Uncheck VLC logo in VLC settings
+```
+VLC > Tools > Settings > Advanced Settings > Interface > Main interfaces > Qt > Display background cone or art
+```
+

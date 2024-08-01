@@ -8,4 +8,4 @@ groups:
   - priority: 100
     source: "./videos/background/**.mp4"
     loop: true
-    clip_period: 2
+    clip_period: 10

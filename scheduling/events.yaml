@@ -8,10 +8,10 @@ groups:
   #    loop: false
   # repeated
   - priority: 0
-    source: "./videos/timed/scariche.mp4"
+    source: "./images/anomaly_range.jpg"
     schedule_at: 5
     clip_period: 2
-    clip_interval: 10
+    clip_interval: 15
     loop: true
 
 #    clip_loop: false
