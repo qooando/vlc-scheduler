@@ -8,13 +8,14 @@ A python-based vlc scheduler for local videos. It was inspired by https://github
 - Play sequential stream, interrupt them with timed events
 - Schedule and play video at specific times
 
-## TODO
+### TODO
 
 - [ ] Repeat group up to N times
 - [ ] Repeat every clip up to N times
 - [ ] Pause and resume an preempted lower-priority video
 - [ ] Stop a group at a specified time (absolute max time or relative to start time)
 - [ ] Improve performance
+- [ ] Accept a specific format string for relative times (instead to force seconds) e.g. "1h 20m 34s"
 
 ## Fast start (linux)
 
@@ -77,7 +78,28 @@ Default to current date and time. If you specify an integer (in seconds) it is t
 
 `loop: bool = False` loop the group
 
-`start_at: int | str = 0`: number of seconds (from the base schedule `start_at`) or an absolute iso datetime
+`schedule_at: int | str = 0`: number of seconds (from the base schedule `start_at`) or an absolute iso datetime
+
+> e.g. start the source group at specific time (ISO format, current pc time)
+> ```yaml
+> groups:
+>   - source: ./videos/background/**
+>     start_at: "2024-08-01 16:88"
+> ```
+> 
+> e.g. start the source group 5 minute after the scheduler start
+> ```yaml
+> groups:
+>   - source: ./videos
+>     start_at: 300
+> ```
+> e.g. start the source group 5 minute after the file base date
+> ```yaml
+> schedule_at: "2024-08-01 16:88"
+> groups:
+>   - source: ./videos/background/**
+>     schedule_at: 300
+> ```
 
 `clip_interval: int`: interval in seconds between clips (from start to the next clip start)
 

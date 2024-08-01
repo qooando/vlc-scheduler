@@ -127,7 +127,11 @@ class VideoScheduler:
 
         for schedule_path in schedule_files:
             logger.debug(f"Load schedule {schedule_path}")
-            schedule_file = ScheduleFile(**yaml.safe_load(open(schedule_path)))
+            try:
+                schedule_file = ScheduleFile(**yaml.safe_load(open(schedule_path)))
+            except TypeError as e:
+                logger.warning(f"Load failed: {e}")
+                continue
             # fix times
             if isinstance(schedule_file.schedule_at, str):
                 schedule_file.schedule_at = datetime.fromisoformat(schedule_file.schedule_at)
