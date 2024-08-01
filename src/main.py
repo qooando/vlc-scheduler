@@ -10,9 +10,11 @@ from dataclasses import dataclass, Field, field, asdict
 import yaml
 import logging
 
-from src.vlc import VLCLauncher, VLCHTTPClient
+from vlc import VLCLauncher, VLCHTTPClient
 
-VLC_PLAYLIST_START_INDEX = 3
+VLC_PLAYLIST_INDEX_OFFSET = 3
+VLC_PLAYLIST_FILE_REVERSE_INDEXES = {}
+
 CONFIGFILE = os.getenv('CONFIG') or "config.yaml"
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
@@ -21,78 +23,80 @@ logger = logging.getLogger(__name__)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
-def next_index():
+def _next_index():
     INDEX = 0
     while True:
         yield INDEX
         INDEX += 1
 
 
-NEXT_INDEX = next_index()
+NEXT_INDEX = _next_index()
+
+
+@dataclass
+class ScheduleFile:
+    schedule_at: str | int | datetime = field(default_factory=datetime.now)
+    groups: [typing.Any] = field(default_factory=list)
 
 
 @dataclass
 class Clip:
     id: int = field(default_factory=NEXT_INDEX.__next__)
     priority: int = 100
-    start_timestamp: float = None
+    schedule_at: datetime = None
     path: str = None
     parent: typing.Any = None
 
     reschedule_parent: bool = False
     cursor: int = 0
-    cursor_stop_at: int = None
+    cursor_stop_at: float = None
     vlc_playlist_id: int = None
 
     def __lt__(self, other):
-        if self.start_timestamp != other.start_timestamp:
+        if self.schedule_at != other.schedule_at:
             return self.priority < other.priority
         else:
-            return self.start_timestamp < other.start_timestamp
+            return self.schedule_at < other.schedule_at
 
 
 @dataclass
 class Group:
     # evaluated
     id: int = field(default_factory=NEXT_INDEX.__next__)
-    start_timestamp: float = None
-    end_timestamp: float = None
     clip_paths: [str] = field(default_factory=list)
     clips: [Clip] = field(default_factory=list)
     clips_are_timed: bool = False
     clips_are_sequential: bool = False
+    parent: ScheduleFile = None
 
     # from config
     priority: int = 100
     source: str = None
+    loop: bool = False
+
+    schedule_at: str | int | datetime = 0
+
     # # reproduction interval measured from START to START
     # # time between the END of a clip and the next one
     # interleave: int | None = None
     # repeat: int = 1
     # repeat_interval: int | None = None
-    loop: bool = False
     # sequential: bool = True
     # random: bool = False
     # on_air_period: int | None = None
-    clip_interval: int | None = None  # interval between sequential clip starts
-    clip_period: int | None = None  # how many seconds we play of the clips
+    clip_period: int | timedelta | None = None  # how many seconds we play of the clips
+    clip_interval: int | timedelta | None = None  # interval between sequential clip starts
+
     #
     # discard_if_preempted: bool = False
     # pause_if_preempted: bool = True
     # restart_if_preempted: bool = False
 
-    start_at: str = None
-    end_at: str = None
-    relative_start_at: int = None
-    relative_end_at: int = None
-    daily_start_at: str = None
-    daily_end_at: str = None
-
     def __lt__(self, other):
-        if self.start_timestamp != other.start_timestamp:
+        if self.schedule_at != other.schedule_at:
             return self.priority < other.priority
         else:
-            return self.start_timestamp < other.start_timestamp
+            return self.schedule_at < other.schedule_at
 
 
 class VideoScheduler:
@@ -112,74 +116,36 @@ class VideoScheduler:
     async def load_scheduling(self):
         path = self.config["scheduling"]["path"]
         logger.info(f"Load scheduling from {path}")
-        scheduling_sources = [x for x in glob.glob(path) if os.path.isfile(x)]
+        schedule_files = [x for x in glob.glob(path) if os.path.isfile(x)]
 
-        for scheduling_source in scheduling_sources:
-            logger.debug(f"Load scheduling from {scheduling_source}")
-            scheduling_data = yaml.safe_load(open(scheduling_source))
-            new_channel = scheduling_data["groups"]
-            await asyncio.gather(*[self._add_group(Group(**x)) for x in new_channel])
+        for schedule_path in schedule_files:
+            logger.debug(f"Load schedule {schedule_path}")
+            schedule_file = ScheduleFile(**yaml.safe_load(open(schedule_path)))
+            # fix times
+            if isinstance(schedule_file.schedule_at, str):
+                schedule_file.schedule_at = datetime.fromisoformat(schedule_file.schedule_at)
+            if isinstance(schedule_file.schedule_at, int):
+                schedule_file.schedule_at = datetime.now() + timedelta(seconds=schedule_file.schedule_at)
 
-    async def _add_group(self, group: Group):
+            await asyncio.gather(*[self._load_group(Group(parent=schedule_file, **x)) for x in schedule_file.groups])
+
+    async def _load_group(self, group: Group):
         logger.debug(f"Add group {group}")
 
         group.clip_paths = sorted(glob.glob(group.source))
-        # find times and find start/end timestamps
-        if not group.start_timestamp and group.relative_start_at:
-            group.start_timestamp = datetime.timestamp(datetime.now() + timedelta(seconds=group.relative_start_at))
-        if not group.start_timestamp and group.start_at:
-            group.start_timestamp = datetime.timestamp(datetime.fromisoformat(group.start_at))
-        if not group.start_timestamp and group.daily_start_at:
-            dnow = datetime.now()
-            din = datetime.fromisoformat(group.daily_start_at)
-            d = din.replace(year=dnow.year, month=dnow.month, day=dnow.day)
-            group.start = datetime.timestamp(d)
-        if not group.end_timestamp and group.relative_end_at:
-            group.end_timestamp = datetime.timestamp(datetime.now() + timedelta(seconds=group.relative_end_at))
-        if not group.end_timestamp and group.end_at:
-            group.end_timestamp = datetime.timestamp(datetime.fromisoformat(group.end_at))
-        if not group.end_timestamp and group.daily_end_at:
-            dnow = datetime.now()
-            din = datetime.fromisoformat(group.daily_end_at)
-            d = din.replace(year=dnow.year, month=dnow.month, day=dnow.day)
-            group.end = datetime.timestamp(d)
-
-        group.clips_are_sequential = group.clip_interval is None
-        group.clips_are_timed = not group.clips_are_sequential
-
-        if not group.clips and len(group.clip_paths) > 0:
-            group.clips = []
-            first_clip_start_timestamp = group.start_timestamp
-            if not first_clip_start_timestamp and group.clips_are_timed:
-                first_clip_start_timestamp = datetime.timestamp(datetime.now())
-            clip_num = len(group.clip_paths)
-            for clip_index, clip_path in enumerate(group.clip_paths):
-                clip_start_timestamp = None
-                if group.clips_are_timed:
-                    clip_start_timestamp = first_clip_start_timestamp + clip_index * group.clip_interval
-                clip = Clip(
-                    priority=group.priority,
-                    start_timestamp=clip_start_timestamp,
-                    path=clip_path,
-                    parent=group,
-                    cursor=0,
-                    cursor_stop_at=group.clip_period
-                )
-                if group.clips_are_sequential and group.loop and clip_index == clip_num - 1:
-                    clip.reschedule_parent = True
-                group.clips.append(clip)
-
+        await self._postprocess_group_after_load(group)
         await self._schedule_group(group)
 
     async def _schedule_group(self, group: Group):
-        if group.start_timestamp and datetime.timestamp(datetime.now()) < group.start_timestamp:
+        now = datetime.now()
+        if group.schedule_at and now < group.schedule_at:
             await self.group_start_timestamp_schedule.put(
-                tuple([group.start_timestamp, group.priority, group.id, group])
+                tuple([group.schedule_at, group.priority, group.id, group])
             )
         else:
             if group.clips_are_timed:
                 subtasks = [self.clip_start_timestamp_schedule.put(
-                    [c.start_timestamp, c.priority, c.id, c]
+                    [c.schedule_at, c.priority, c.id, c]
                 ) for c in group.clips]
                 await asyncio.gather(*subtasks)
             elif group.clips_are_sequential:
@@ -190,6 +156,58 @@ class VideoScheduler:
             else:
                 raise Exception(f"Unknown group clips type")
 
+    async def _postprocess_group_after_load(self, g):
+        # fix times
+        if isinstance(g.clip_interval, int):
+            g.clip_interval = timedelta(seconds=g.clip_interval)
+        if isinstance(g.clip_period, int):
+            g.clip_period = timedelta(seconds=g.clip_period)
+        if isinstance(g.schedule_at, str):
+            g.schedule_at = datetime.fromisoformat(g.schedule_at)
+        if isinstance(g.schedule_at, int):
+            g.schedule_at = g.parent.schedule_at + timedelta(g.schedule_at)
+
+        g.clips_are_sequential = g.clip_interval is None
+        g.clips_are_timed = not g.clips_are_sequential
+
+        # fix clips
+        clip_n = len(g.clip_paths)
+        if not g.clips and len(g.clip_paths) > 0:
+            g.clips = []
+
+            # start clip schedule time
+            schedule_start_at = None
+            if g.clips_are_timed:
+                schedule_start_at = g.schedule_at or datetime.now()
+            for i, p in enumerate(g.clip_paths):
+                # schedule time
+                schedule_clip_at = None
+                if g.clips_are_timed:
+                    schedule_clip_at = schedule_start_at + timedelta(seconds=i * g.clip_interval.total_seconds())
+                # vlc playlist id
+                vlc_playlist_id = None
+                if p in VLC_PLAYLIST_FILE_REVERSE_INDEXES:
+                    vlc_playlist_id = VLC_PLAYLIST_FILE_REVERSE_INDEXES[p]
+                else:
+                    self.vlc_client.enqueue(p)
+                    VLC_PLAYLIST_FILE_REVERSE_INDEXES[p] = \
+                        vlc_playlist_id = len(VLC_PLAYLIST_FILE_REVERSE_INDEXES) + VLC_PLAYLIST_INDEX_OFFSET
+
+                clip = Clip(
+                    path=p,
+                    parent=g,
+                    priority=g.priority,
+                    schedule_at=schedule_clip_at,
+                    vlc_playlist_id=vlc_playlist_id,
+                    cursor=0,
+                    cursor_stop_at=g.clip_period.total_seconds()
+                )
+                # loop
+                if g.clips_are_sequential and g.loop and i == clip_n - 1:
+                    clip.reschedule_parent = True
+
+                g.clips.append(clip)
+
     async def scheduler_task(self):
         try:
             while self.active:
@@ -199,7 +217,7 @@ class VideoScheduler:
             self.vlc_client.stop()
 
     async def _schedule_tick(self):
-        now = datetime.timestamp(datetime.now())
+        now = datetime.now()
         _next = self.group_start_timestamp_schedule._queue[0] \
             if not self.group_start_timestamp_schedule.empty() else None
         while _next is not None and now >= _next[0]:
@@ -237,22 +255,14 @@ class VideoScheduler:
             next_clip = _next[2]
 
         if next_clip is None:
-            return False
+            return True
 
         await self._play_clip(next_clip)
 
         return True
 
     async def _play_clip(self, clip: Clip):
-        logger.info(f"Play clip {clip}")
-
-        if not clip.vlc_playlist_id:
-            if clip.path in self.vlc_clip_playlist_id:
-                clip.vlc_playlist_id = self.vlc_clip_playlist_id[clip.path]
-            self.vlc_client.enqueue(clip.path)
-            self.vlc_clip_playlist_id[clip.path] = clip.vlc_playlist_id = (
-                    len(self.vlc_clip_playlist_id) + VLC_PLAYLIST_START_INDEX
-            )
+        logger.info(f"Play clip {clip.path}")
         self.vlc_client.play(clip.vlc_playlist_id, clip.cursor)
         self.vlc_client.seek(clip.cursor)
         self.clip_on_air = clip
@@ -266,11 +276,11 @@ class VideoScheduler:
 
         if not stop and vlc_status["state"] == "stopped":
             c.cursor = 0
-            c.cursor_stop_at = c.parent.clip_period
+            c.cursor_stop_at = c.parent.clip_period.total_seconds()
             stop = True
 
         if not stop and c.cursor >= c.cursor_stop_at:
-            c.cursor_stop_at += c.parent.clip_period
+            c.cursor_stop_at += c.parent.clip_period.total_seconds()
             self.vlc_client.pause()
             stop = True
 

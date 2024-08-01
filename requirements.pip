@@ -2,3 +2,4 @@ PyYaml
 python-vlc
 requests
 xmltodict
+pytimeparse

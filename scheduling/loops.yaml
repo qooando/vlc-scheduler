@@ -1,0 +1,29 @@
+schedule_at: 5
+groups:
+  - priority: 100
+    source: "./videos/background/**.mp4"
+    loop: true
+    clip_period: 2
+#  - priority: 0
+#    source: "./videos/timed/**.mp4"
+#    clip_period: 6
+#    schedule_at: 5
+#    clip_interval: 1
+#    loop: true   # loop ok, but start time must be set properly FIXME
+
+#  - source: "./video/background/**.mp4"
+#    layer: 0
+#    loop: true
+#    on_air_period: 10
+#    remember_position: true
+#  - source: "./video/background/**.mp4"
+#    layer: 1
+#    loop: true
+#    on_air_period: 10
+#    remember_position: true
+#    start:
+#    end:
+#
+#clips:
+
+
