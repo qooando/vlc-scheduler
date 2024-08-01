@@ -148,16 +148,19 @@ class VideoScheduler:
     async def _schedule_group(self, group: Group, new_schedule_at: datetime = None):
         now = datetime.now()
         if group.schedule_at and now < group.schedule_at:
+            logger.debug(f"Schedule group for later: {group}")
             await self.group_start_timestamp_schedule.put(
                 tuple([group.schedule_at, group.priority, group.id, group])
             )
         else:
+            logger.debug(f"Schedule group now: {group}")
             subtasks = []
             delta_schedule_at = None
             if new_schedule_at:
                 delta_schedule_at = new_schedule_at - group.schedule_at
             if group.clips_are_timed:
                 for c in group.clips:
+                    logger.debug(f"Schedule timed clip: {c}")
                     if c.schedule_at:
                         c = c.clone()
                         c.schedule_at += delta_schedule_at
@@ -167,6 +170,7 @@ class VideoScheduler:
                     subtasks.append(s)
             elif group.clips_are_sequential:
                 for c in group.clips:
+                    logger.debug(f"Schedule sequential clip: {c}")
                     if c.schedule_at:
                         c = c.clone()
                         c.schedule_at += delta_schedule_at
@@ -189,7 +193,7 @@ class VideoScheduler:
         if isinstance(g.schedule_at, str):
             g.schedule_at = datetime.fromisoformat(g.schedule_at)
         if isinstance(g.schedule_at, int):
-            g.schedule_at = g.parent.schedule_at + timedelta(g.schedule_at)
+            g.schedule_at = g.parent.schedule_at + timedelta(seconds=g.schedule_at)
 
         g.clips_are_sequential = g.clip_interval is None
         g.clips_are_timed = not g.clips_are_sequential
@@ -251,14 +255,14 @@ class VideoScheduler:
             now = datetime.now()
 
             try:
-                _next = self.group_start_timestamp_schedule.get_nowait()
-                while _next is not None and now >= _next[0]:
-                    await self._schedule_group(_next[3])
-                    _next = self.group_start_timestamp_schedule.get_nowait()
-                if _next is not None:
-                    await self.group_start_timestamp_schedule.put(_next)
+                _, _, _, g = _next = self.group_start_timestamp_schedule.get_nowait()
+                while now >= g.schedule_at:
+                    logger.debug(f"Schedule group: {g}")
+                    await self._schedule_group(g)
+                    _, _, _, g = _next = self.group_start_timestamp_schedule.get_nowait()
+                await self.group_start_timestamp_schedule.put(_next)
             except QueueEmpty as e:
-                _next = None
+                pass
 
             await asyncio.sleep(self.polling_time or 0.5)
 
@@ -322,10 +326,7 @@ class VideoScheduler:
                     await self._schedule_group(c.parent, c.schedule_at + c.parent.clip_interval)
                 else:
                     await self._schedule_group(c.parent)
-                    # fixme rescheduling should duplicate clip with newer one
-                    #  set reschedule_parent false
-                    #  provide also a new offset for timed scheduling
-                    #  add repeats n times
+                    # fixme: add repeats n times
 
         return not stop
 

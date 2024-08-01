@@ -1,9 +1,9 @@
-schedule_at: 0
+#schedule_at: 0
 groups:
   - priority: 0
-    source: "./videos/timed/**.mp4"
-#    clip_period: 6
+    source: "./videos/timed/scariche.mp4"
     schedule_at: 3
+#    clip_period: 6
 #    clip_interval: 1
 #    loop: true
 #    clip_loop: true
