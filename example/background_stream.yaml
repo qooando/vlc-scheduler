@@ -1,0 +1,5 @@
+groups:
+  - priority: 100
+    source: "./videos/background/**"
+    loop: true
+    clip_period: 10

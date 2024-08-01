@@ -1,0 +1,16 @@
+vlc:
+  start: true
+  host: "localhost"
+  port: 8080
+  password: "test"
+  extraintf: "http,luaintf"
+  options:
+    - "--no-video-title-show"
+  #    - "--start-paused"
+  path:
+    win: 'C:\Program Files\VideoLAN\VLC\vlc.exe'
+    macos: '/Applications/VLC.app/Contents/MacOS/VLC'
+    linux: '/usr/bin/vlc'
+scheduling:
+  path: ./scheduling/**.yaml
+
