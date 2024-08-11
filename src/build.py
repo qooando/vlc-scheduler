@@ -68,9 +68,9 @@ class ScheduleBuilder:
         assert (s)
         logger.debug(f"Add source {s.source}")
 
-        s.clip_paths = sorted(glob.glob(s.source))
+        source_clip_paths = s.clip_paths = sorted(glob.glob(s.source))
         source_start_at = s.start_at = to_date(s.start_at, start_date=start_at, default=start_at)
-        s.end_at = to_date(s.end_at, start_date=source_start_at, default=None)
+        source_end_at = s.end_at = to_date(s.end_at, start_date=source_start_at, default=end_at)
         clip_repeat_interval = s.clip_repeat_interval = to_delta(s.clip_repeat_interval, start_date=source_start_at,
                                                                  default=None)
         clip_play_duration = s.clip_play_duration = to_delta(s.clip_play_duration, start_date=source_start_at,
@@ -82,6 +82,8 @@ class ScheduleBuilder:
         s.clip_stop_if_interrupted = (not s.clip_continue_after_interruption and
                                       not s.clip_restart_after_interruption and
                                       not s.clip_skip_time_after_interruption)
+
+        s.clip_loop = s.clip_loop or s.clip_continue_after_interruption or s.clip_skip_time_after_interruption
 
         if s.clips or not s.clip_paths:
             return s
@@ -102,14 +104,14 @@ class ScheduleBuilder:
 
                 clip_cursor_start_at = timedelta(0)
 
-                if clip_states:
-                    if not s.clip_restart_after_interruption:
+                if prev_state:
+                    if s.clip_continue_after_interruption:
                         clip_cursor_start_at = prev_state.cursor_end_at
-                    if not s.clip_skip_time_after_interruption:
+                    if s.clip_skip_time_after_interruption:
                         clip_cursor_start_at = prev_state.cursor_end_at + (start_at - prev_state.end_at)
 
                 if s.end_at and clip_start_at >= s.end_at:
-                    break;
+                    break
 
                 clip = await self._load_schedule_clip(
                     p, clip_index=i, parent=s,
@@ -120,6 +122,7 @@ class ScheduleBuilder:
                     clip_cursor_start_at=clip_cursor_start_at
                 )
 
+                clip_states[p] = clip
                 clip_end_at = clip.end_at
 
                 if are_sequential:

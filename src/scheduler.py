@@ -90,8 +90,8 @@ class VideoScheduler:
             if next_clip and now > next_clip.start_at:
                 if clips_to_air:
                     clips_to_air.pop(0)
-                logger.info(f"Play clip: {next_clip.path}")
-                cursor = (next_clip.cursor_start_at + (next_clip.start_at - now)).total_seconds()
+                cursor = round((next_clip.cursor_start_at + (now - next_clip.start_at)).total_seconds())
+                logger.info(f"Play clip: {next_clip.path} seek={cursor}")
                 self.vlc_client.play(next_clip.vlc_playlist_id)
                 self.vlc_client.seek(cursor)
                 self.vlc_client.repeat(next_clip.loop)

@@ -122,7 +122,7 @@ class VLCHTTPClient:
     def enqueue(self, uri):
         return self._command('in_enqueue', {'input': self._format_uri(uri)})
 
-    def play(self, uid=None, seek=None):
+    def play(self, uid=None):
         # try:
         if uid:
             return self._command('pl_play', {'id': uid})
