@@ -93,11 +93,11 @@ class ScheduleBuilder:
             )
 
             if are_sequential:
-                clip_start_at += clip.duration
+                clip_start_at += clip.play_duration
             elif are_cadenced:
                 clip_start_at += clip_repeat_interval
-                if clip_repeat_interval < clip.duration:
-                    logger.warning(f"Clip repeat interval {clip_repeat_interval} < clip duration {clip.duration}")
+                if clip_repeat_interval < clip.play_duration:
+                    logger.warning(f"Clip repeat interval {clip_repeat_interval} < clip duration {clip.play_duration}")
             else:
                 raise NotImplemented()
 

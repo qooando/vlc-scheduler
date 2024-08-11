@@ -11,15 +11,10 @@ import yaml
 import logging
 
 from src import build
-from src.config import ALL_YAML_FILE
+from src.config import ALL_YAML_FILE, CONFIGFILE, VLC_PLAYLIST_FILE_REVERSE_INDEXES, VLC_PLAYLIST_INDEX_OFFSET
 from src.timeutils import to_date, to_delta
 from src.types import ScheduleClip, ScheduleFile, ScheduleSource
 from vlc import VLCLauncher, VLCHTTPClient
-
-VLC_PLAYLIST_INDEX_OFFSET = 3
-VLC_PLAYLIST_FILE_REVERSE_INDEXES = {}
-
-CONFIGFILE = os.getenv('CONFIG') or "config.yaml"
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
 logger = logging.getLogger(__name__)
@@ -67,15 +62,14 @@ class VideoScheduler:
 
     async def task_schedule_clips(self):
         clips_to_air: [ScheduleClip] = [*self.clips]
-        next_clip: ScheduleClip = None
-        while clips_to_air:
-            # await self._check_clip_on_air()
+        next_clip: ScheduleClip | None = None
+        while clips_to_air or self.clip_on_air:
 
             now = datetime.now()
             curr_clip = self.clip_on_air
-            if clips_to_air[0] is not next_clip:
+            if clips_to_air and clips_to_air[0] is not next_clip:
                 next_clip = clips_to_air[0]
-                logger.debug(f"Next clip: {next_clip.path}, scheduled at {next_clip.start_at}")
+                logger.info(f"Next clip: {next_clip.path}, scheduled at {next_clip.start_at}")
 
             # skip already ended
             while clips_to_air and now > next_clip.end_at:
@@ -84,24 +78,25 @@ class VideoScheduler:
                 if clips_to_air:
                     next_clip = clips_to_air[0]
 
-            if not clips_to_air:
-                logger.debug(f"No more clips to air")
-                break
-
             if curr_clip and now > curr_clip.end_at:
                 logger.debug(f"Stop clip: {curr_clip.path}")
                 self.vlc_client.stop()
+                self.clip_on_air = None
+                curr_clip = None
 
-            if now > next_clip.start_at:
+            if next_clip and now > next_clip.start_at:
                 clips_to_air.pop(0)
                 logger.debug(f"Play clip: {next_clip.path}")
                 cursor = (next_clip.cursor_start_at + (next_clip.start_at - now)).total_seconds()
                 self.vlc_client.play(next_clip.vlc_playlist_id)
                 self.vlc_client.seek(cursor)
                 self.vlc_client.repeat(next_clip.loop)
-                self.clip_on_air = curr_clip
+                self.clip_on_air = next_clip
+                next_clip = None
 
             await asyncio.sleep(self.polling_time or 0.5)
+
+        logger.info(f"No more clips to air")
 
     async def _check_clip_on_air(self):
         c = self.clip_on_air
