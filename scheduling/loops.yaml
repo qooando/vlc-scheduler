@@ -1,11 +1,23 @@
-schedule_at: "2024-08-01 18:10"
-groups:
+#start_at: "2024-08-01 18:10"
+##end_at:  "10H 15m"
+#sources:
+#  #  - priority: 100
+#  #    source: "./videos/background/acqua.mp4"
+#  #    loop: true
+#  #    clip_loop: true
 #  - priority: 100
-#    source: "./videos/background/acqua.mp4"
+#    source: "./videos/background/**.mp4"
 #    loop: true
-#    clip_loop: true
-
-  - priority: 100
-    source: "./videos/background/**.mp4"
-    loop: true
-    clip_period: 10
+#    clip_period: 10
+#
+## TODO calcolare tutti i tempi di esecuzioni per quanto tempo,
+## se lancio una cosa del 1-8 deve calcolarsi il momento giusto da eseguire e non una cosa a caso fin dall'inizio
+## salvare lo stato!
+## fare in modo che se interrompo un video, possa riprenderlo ma saltando il tempo di interruzione
+## permettere tempi relativi con ora:minuti:secondi senza la data
+#
+## permettere che se si chiude il programma uno possa riavviarlo e ci si ritrova al punto giusto (calcolare il giusto punto di inizio)
+## mettere ora di chiusura
+#
+## FARE IL CALCOLO DEL PALINSESTO REALE A PRIORI
+#

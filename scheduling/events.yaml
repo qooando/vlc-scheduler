@@ -1,5 +1,5 @@
 ##schedule_at: 0
-#groups:
+#sources:
 #  # one shot
 #  #  - priority: 0
 #  #    source: "./videos/timed/scariche.mp4"

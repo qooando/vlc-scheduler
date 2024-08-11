@@ -1,0 +1,12 @@
+start_at: "2024-08-11 18:42"
+#start_at: "01:00:00" # relative time or absolute iso "12s"
+sources:
+  - source: "./videos/background/**.mp4"
+    priority: 100
+#    loop: false
+#    clip_loop: true
+#    clip_play_duration: 10
+#  - source: "./videos/timed/**.mp4"
+#    priority: 0
+#    clip_loop: true
+#    clip_play_duration: "00:00:15"
