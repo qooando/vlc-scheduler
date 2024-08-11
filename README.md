@@ -55,7 +55,7 @@ You can find examples in the `examples` folder.
 Schedules are yaml files in the following format
 
 ```yaml
-groups:
+sources:
   - source: "./glob/path1/**"
   - source: "./glob/path2/**"
 ```
@@ -64,51 +64,72 @@ A schedule file MUST contain `groups` and their parameters.
 
 Other global parameters are:
 
-`schedule_at: int | str = now()` start reference time for this schedule, used as base for any other relative time in the
-file. Can be relative to current time (using integer) or absolute (string).
+`start_at: int | str = now()` start time. Can be an absolute iso string `2024-08-01 11:12:13`,
+or a relative time (evaluate from `now()`) in seconds `120` or a relative time in `hh:mm:ss` format. 
+This is the default star time for all sources in the file.
 
-Default to current date and time. If you specify an integer (in seconds) it is the delay from now.
+`end_at: int | str = None` end time. Can be an absolute iso string or a relative (to `start_time`) time. 
 
 ### Source parameters
 
-#### Basic
-
 `source: string` is a valid glob string, it selects which files are parte of this source.
 
-`priority: int = 100` smaller integer means higher priority.
+`priority: int = 100` smaller integer means higher priority. Specify a low priority (e.g. 100) for background videos, 
+and higher priority (e.g. 0) for important videos that must interrupt background videos.
 
-`loop: bool = False` loop the group
+`loop: bool = False` loop the full group. It **requires** an `end_at` time
 
-`schedule_at: int | str = 0`: number of seconds (from the base schedule `start_at`) or an absolute iso datetime
+`start_at: int | str`: start time for this source, default is file `start_at`. You can specify an absolute isoformat
+date or a relative (to file `start_at`) time.
+
+`end_at: int | str`: end time for this source, default is `start_at` + all video play times.
 
 > e.g. start the source group at specific time (ISO format, current pc time)
 > ```yaml
-> groups:
+> sources:
 >   - source: ./videos/background/**
 >     start_at: "2024-08-01 16:88"
 > ```
 > 
 > e.g. start the source group 5 minute after the scheduler start
 > ```yaml
-> groups:
+> sources:
 >   - source: ./videos
->     start_at: 300
+>     start_at: "5m"
 > ```
 > e.g. start the source group 5 minute after the file base date
 > ```yaml
-> schedule_at: "2024-08-01 16:88"
-> groups:
+> start_at: "2024-08-01 16:88"
+> sources:
 >   - source: ./videos/background/**
->     schedule_at: 300
+>     start_at: 300
 > ```
 
-`clip_interval: int`: interval in seconds between clips (from start to the next clip start)
+`clip_play_duration = int | str` time delta the video must be scheduled (e.g. `15m 5s` or `00:15:05`). Can be shorter or longer than
 
-#### Clips
+`clip_loop = false` put the single clip in loop, useful if play time is greater than clip duration.
 
-`clip_period: int` how many seconds of each clip must be
+`clip_repeat_interval` start clip every interval time, this is the start time, it should be greater than clip play duration or they will overlap.
 
-`clip_loop: bool = False` repeat clips
+`clip_stop_if_interrupted = true` avoid to reschedule the remaining clip time if it was interrupted by a higher priority clip.
+
+`clip_restart_after_interruption` restart the clip after interruption
+
+`clip_continue_after_interruption` reschedule the clip if interrupted, starts at the same cursor where it was interrupted
+
+`clip_skip_time_after_interruption` reschedule the clip if interrupted, take in account the elapsed time consumed by the interrupting clip, as if we just change between two channels
+
+### Time formats
+
+Accepted time formats are:
+
+`YYYY-MM-DD hh:mm:ss` isoformat for absolute times
+
+`hh:mm:ss` simple hour, minutes, seconds format for relative times and deltas
+
+`10h 3m 2s` for relative times and deltas, you can specify only one or two items (e.g `60s`, `1m`)
+
+`1234` simple numbers are evaluated in seconds
 
 ## VLC
 
