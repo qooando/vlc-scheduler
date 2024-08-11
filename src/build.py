@@ -62,15 +62,15 @@ class ScheduleBuilder:
         sources = [ScheduleSource(parent=schedule_file, **x) for x in schedule_file.sources]
 
         for s in sources:
-            await self._load_schedule_source(s, start_at=file_start_at, end_at=file_end_at)
+            await self._load_schedule_source(s, file_start_at=file_start_at, file_end_at=file_end_at)
 
-    async def _load_schedule_source(self, s, start_at: datetime, end_at: datetime):
+    async def _load_schedule_source(self, s, file_start_at: datetime, file_end_at: datetime):
         assert (s)
         logger.debug(f"Add source {s.source}")
 
         source_clip_paths = s.clip_paths = sorted(glob.glob(s.source))
-        source_start_at = s.start_at = to_date(s.start_at, start_date=start_at, default=start_at)
-        source_end_at = s.end_at = to_date(s.end_at, start_date=source_start_at, default=end_at)
+        source_start_at = s.start_at = to_date(s.start_at, start_date=file_start_at, default=file_start_at)
+        source_end_at = s.end_at = to_date(s.end_at, start_date=source_start_at, default=file_end_at)
         clip_repeat_interval = s.clip_repeat_interval = to_delta(s.clip_repeat_interval, start_date=source_start_at,
                                                                  default=None)
         clip_play_duration = s.clip_play_duration = to_delta(s.clip_play_duration, start_date=source_start_at,
@@ -83,6 +83,7 @@ class ScheduleBuilder:
                                       not s.clip_restart_after_interruption and
                                       not s.clip_skip_time_after_interruption)
 
+        s.clip_loop = s.clip_loop or s.clip_continue_after_interruption or s.clip_skip_time_after_interruption
         s.clip_loop = s.clip_loop or s.clip_continue_after_interruption or s.clip_skip_time_after_interruption
 
         if s.clips or not s.clip_paths:
@@ -108,7 +109,8 @@ class ScheduleBuilder:
                     if s.clip_continue_after_interruption:
                         clip_cursor_start_at = prev_state.cursor_end_at
                     if s.clip_skip_time_after_interruption:
-                        clip_cursor_start_at = prev_state.cursor_end_at + (start_at - prev_state.end_at)
+                        clip_cursor_start_at = prev_state.cursor_end_at + (clip_start_at - prev_state.end_at)
+                        assert clip_cursor_start_at >= timedelta(0)
 
                 if s.end_at and clip_start_at >= s.end_at:
                     break
@@ -149,6 +151,8 @@ class ScheduleBuilder:
         assert clip_path
         assert parent
         assert clip_start_at
+        assert not clip_cursor_start_at or clip_cursor_start_at >= timedelta(0)
+
 
         clip_duration = video_duration(clip_path)
         clip_play_duration = clip_play_duration or clip_duration
@@ -171,7 +175,7 @@ class ScheduleBuilder:
             cursor_end_at=clip_cursor_end_at
         )
 
-        logger.debug(f"Add clip {clip_path} start {c.start_at} end {c.end_at}")
+        logger.debug(f"Add clip {clip_path} start {c.start_at} end {c.end_at}, cursor start {c.cursor_start_at} end {c.cursor_end_at}")
 
         await self._all_prioritized_clips.put(c)
         return c
@@ -209,14 +213,15 @@ class ScheduleBuilder:
         outPath = self.config["scheduling"]["outDir"]
         os.makedirs(outPath, exist_ok=True)
 
+        yaml.add_representer(timedelta, lambda dumper, data: dumper.represent_str(str(data)))
+        yaml.add_representer(datetime, lambda dumper, data: dumper.represent_str(data.isoformat()))
+
         path = os.path.join(outPath, ALL_YAML_FILE)
         yaml.Dumper.ignore_aliases = lambda *args: True
-        yaml.add_representer(timedelta, lambda dumper, data: dumper.represent_str(str(data)))
         yaml.dump({"schedule": self.schedule}, open(path, "w"))
 
         path = os.path.join(outPath, FILTERED_YAML_FILE)
         yaml.Dumper.ignore_aliases = lambda *args: True
-        yaml.add_representer(timedelta, lambda dumper, data: dumper.represent_str(str(data)))
         yaml.dump({"schedule": [x for x in self.schedule if x.priority <= prio_level]}, open(path, "w"))
 
         path = os.path.join(outPath, FILTERED_CSV_FILE)

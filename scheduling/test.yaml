@@ -9,7 +9,8 @@ sources:
     loop: true
     #    end_at: 1m 2s
     #    clip_restart_after_interruption: true
-    clip_continue_after_interruption: true
+    #    clip_continue_after_interruption: true
+    clip_skip_time_after_interruption: true
 
 #    loop: false
 #    clip_loop: true

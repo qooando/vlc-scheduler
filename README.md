@@ -10,6 +10,7 @@ A python-based vlc scheduler for local videos. It was inspired by https://github
 
 ### TODO
 
+- [ ] Update this readme
 - [ ] Repeat group up to N times
 - [ ] Repeat every clip up to N times
 - [ ] Pause and resume an preempted lower-priority video
