@@ -1,9 +1,11 @@
+import math
 import re
 from datetime import datetime, timedelta
 import pytimeparse
 
 re_hms_format = re.compile(r'^\s*(\d+[Hh])?\s*(\d+[Mm])?\s*(\d+[Ss])?$')
 re_hms_format2 = re.compile(f'^(?P<hours>\d+):(?P<minutes>\d+):(?P<seconds>[\d.]+)$')
+
 
 def to_date(data, start_date=datetime.now(), default=None):
     assert start_date
@@ -50,6 +52,7 @@ def to_delta(data, start_date=datetime.now(), default=timedelta(seconds=0)):
         return datetime.fromisoformat(data) - start_date
     raise NotImplementedError(data)
 
+
 def video_duration(path):
     from moviepy.editor import VideoFileClip
     clip = VideoFileClip(path)
@@ -60,3 +63,9 @@ def video_duration(path):
     # frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     # duration = frame_count / fps
     # return timedelta(seconds=duration)
+
+
+def fmod_delta(a: timedelta, b: timedelta):
+    return timedelta(
+        seconds=math.fmod(a.total_seconds(), (b + timedelta(microseconds=1)).total_seconds())
+    )

@@ -13,7 +13,7 @@ import yaml
 import logging
 
 from src.config import ALL_YAML_FILE, FILTERED_YAML_FILE, FILTERED_CSV_FILE
-from src.timeutils import to_delta, to_date, video_duration
+from src.timeutils import to_delta, to_date, video_duration, fmod_delta
 from src.types import ScheduleFile, ScheduleSource, ScheduleClip
 from vlc import VLCLauncher, VLCHTTPClient
 
@@ -155,9 +155,8 @@ class ScheduleBuilder:
 
         clip_duration = video_duration(clip_path)
         clip_play_duration = clip_play_duration or clip_duration
-        clip_cursor_start_at = timedelta(seconds=math.fmod(clip_cursor_start_at.total_seconds(), clip_duration.total_seconds()))
-        clip_cursor_end_at = timedelta(seconds=math.fmod((clip_cursor_start_at + clip_play_duration).total_seconds(),
-                                                         clip_duration.total_seconds()))
+        clip_cursor_start_at = fmod_delta(clip_cursor_start_at, clip_duration)
+        clip_cursor_end_at = fmod_delta(clip_cursor_start_at + clip_play_duration, clip_duration)
         if clip_cursor_start_at.total_seconds() > clip_duration.total_seconds():
             logger.warning(f"Cursor start > clip duration")
         if clip_cursor_end_at.total_seconds() > clip_duration.total_seconds():
@@ -193,24 +192,43 @@ class ScheduleBuilder:
 
         last_clip: ScheduleClip | None = None
         while not p.empty():
-            to_insert = await p.get()
+            to_insert: ScheduleClip = await p.get()
             if not last_clip:
                 s.append(to_insert)
                 last_clip = s[-1]
                 continue
 
-            # if to_insert.start_at < last_clip.start_at:
-            #     raise ValueError(f"Clips are not ordered by increasing time")
-            # if to_insert.start_at == last_clip.start_at:
-            #     if to_insert.priority < last_clip.priority:
-            #         raise ValueError(f"Clips are not ordered by increasing priority")
-            #     continue # ignore same priority and same time
-            # if to_insert.start_at < last_clip.end_at:
-            #     if to_insert.priority >= last_clip.priority:
-            #         # FIXME insert clip but eventually crop it
-            #         pass
-            # NOTE: here we need to insert the element, but previous one can be eventually split in two
-            s.append(to_insert)
+            if to_insert.start_at < last_clip.start_at:
+                raise ValueError(f"Clips are not ordered by increasing time")
+            if to_insert.start_at == last_clip.start_at:
+                if to_insert.priority < last_clip.priority:
+                    raise ValueError(f"Clips are not ordered by increasing priority")
+                # ignore same priority and same time
+                continue
+            if to_insert.start_at < last_clip.end_at:
+                if to_insert.priority >= last_clip.priority:
+                    if to_insert.end_at <= last_clip.end_at:
+                        # new clip is shorter and with lower priority, just skip
+                        continue
+                    logger.debug(f"Crop low priority clip: {to_insert.path}")
+                    to_insert_parent: ScheduleSource = to_insert.parent
+                    old_start_at = to_insert_parent.start_at
+                    to_insert_parent.start_at = last_clip.start_at
+                    to_insert.play_duration = min(to_insert.play_duration, to_insert.end_at - to_insert.start_at)
+                    if to_insert_parent.clip_restart_after_interruption:
+                        pass
+                    elif to_insert_parent.clip_continue_after_interruption or to_insert_parent.clip_skip_time_after_interruption:
+                        to_insert.cursor_start_at = fmod_delta(
+                            to_insert.cursor_start_at + to_insert.start_at - old_start_at,
+                            to_insert.play_duration.total_seconds()
+                        )
+                    to_insert.cursor_end_at = to_insert.cursor_start_at + to_insert.play_duration
+                else:
+                    logger.debug(f"Crop high priority clip: {last_clip.path}")
+                    # FIXME
+
+            else:
+                s.append(to_insert)
             last_clip = s[-1]
 
     async def save_schedule(self):
