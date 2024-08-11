@@ -1,4 +1,4 @@
-start_at: "2024-08-10 00:00"
+#start_at: "2024-08-10 00:00"
 #start_at: "01:00:00" # relative time or absolute iso "12s"
 #start_at: "1m"
 sources:

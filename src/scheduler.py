@@ -88,7 +88,7 @@ class VideoScheduler:
                 curr_clip = None
 
             if next_clip and now > next_clip.start_at:
-                if clips_to_air.pop(0):
+                if clips_to_air:
                     clips_to_air.pop(0)
                 logger.info(f"Play clip: {next_clip.path}")
                 cursor = (next_clip.cursor_start_at + (next_clip.start_at - now)).total_seconds()
