@@ -10,13 +10,9 @@ A python-based vlc scheduler for local videos. It was inspired by https://github
 
 ### TODO
 
-- [ ] Update this readme
 - [ ] Repeat group up to N times
 - [ ] Repeat every clip up to N times
-- [ ] Pause and resume an preempted lower-priority video
-- [ ] Stop a group at a specified time (absolute max time or relative to start time)
 - [ ] Improve performance
-- [ ] Accept a specific format string for relative times (instead to force seconds) e.g. "1h 20m 34s"
 
 ## Fast start (linux)
 
