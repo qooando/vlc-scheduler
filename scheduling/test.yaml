@@ -5,6 +5,8 @@ sources:
   - source: "./videos/background/**.mp4"
     priority: 100
     clip_play_duration: 2
+    loop: true
+    end_at: 1m
 #    loop: false
 #    clip_loop: true
 #    clip_play_duration: 10

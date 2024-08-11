@@ -46,10 +46,13 @@ class VideoScheduler:
             c.end_at = to_date(c.end_at)
             c.cursor_start_at = to_delta(c.cursor_start_at)
             c.cursor_end_at = to_delta(c.cursor_end_at)
-            self.vlc_client.enqueue(c.path)
-            VLC_PLAYLIST_FILE_REVERSE_INDEXES[c.path] \
-                = c.vlc_playlist_id \
-                = len(VLC_PLAYLIST_FILE_REVERSE_INDEXES) + VLC_PLAYLIST_INDEX_OFFSET
+            if (c.path not in VLC_PLAYLIST_FILE_REVERSE_INDEXES):
+                self.vlc_client.enqueue(c.path)
+                VLC_PLAYLIST_FILE_REVERSE_INDEXES[c.path] \
+                    = c.vlc_playlist_id \
+                    = len(VLC_PLAYLIST_FILE_REVERSE_INDEXES) + VLC_PLAYLIST_INDEX_OFFSET
+            else:
+                c.vlc_playlist_id = VLC_PLAYLIST_FILE_REVERSE_INDEXES[c.path]
 
             self.clips.append(c)
 
@@ -69,7 +72,7 @@ class VideoScheduler:
             curr_clip = self.clip_on_air
             if clips_to_air and clips_to_air[0] is not next_clip:
                 next_clip = clips_to_air[0]
-                logger.info(f"Next clip: {next_clip.path}, scheduled at {next_clip.start_at}")
+                logger.debug(f"Next clip: {next_clip.path}, scheduled at {next_clip.start_at}")
 
             # skip already ended
             while clips_to_air and now > next_clip.end_at:
@@ -86,7 +89,7 @@ class VideoScheduler:
 
             if next_clip and now > next_clip.start_at:
                 clips_to_air.pop(0)
-                logger.debug(f"Play clip: {next_clip.path}")
+                logger.info(f"Play clip: {next_clip.path}")
                 cursor = (next_clip.cursor_start_at + (next_clip.start_at - now)).total_seconds()
                 self.vlc_client.play(next_clip.vlc_playlist_id)
                 self.vlc_client.seek(cursor)

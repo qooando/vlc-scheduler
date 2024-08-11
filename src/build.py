@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import math
 import sys
 import typing
 from datetime import datetime, timedelta
@@ -66,6 +67,7 @@ class ScheduleBuilder:
     async def _load_schedule_source(self, s, start_at: datetime, end_at: datetime):
         assert (s)
         logger.debug(f"Add source {s.source}")
+
         s.clip_paths = sorted(glob.glob(s.source))
         source_start_at = s.start_at = to_date(s.start_at, start_date=start_at, default=start_at)
         s.end_at = to_date(s.end_at, start_date=source_start_at, default=None)
@@ -77,6 +79,10 @@ class ScheduleBuilder:
         are_sequential = s.clips_are_sequential = s.clip_repeat_interval is None
         are_cadenced = s.clips_are_cadenced = not s.clips_are_sequential
 
+        s.clip_stop_if_interrupted = (not s.clip_continue_after_interruption and
+                                      not s.clip_restart_after_interruption and
+                                      not s.clip_skip_time_after_interruption)
+
         if s.clips or not s.clip_paths:
             return s
 
@@ -84,22 +90,42 @@ class ScheduleBuilder:
 
         clip_start_at = source_start_at
 
-        for i, p in enumerate(s.clip_paths):
-            clip = await self._load_schedule_clip(
-                p, clip_index=i, parent=s,
-                clip_start_at=clip_start_at,
-                clip_play_duration=clip_play_duration,
-                clip_loop=s.clip_loop
-            )
+        if s.loop and not s.end_at:
+            raise ValueError(f"Loop source must specify an end_at time")
 
-            if are_sequential:
-                clip_start_at += clip.play_duration
-            elif are_cadenced:
-                clip_start_at += clip_repeat_interval
-                if clip_repeat_interval < clip.play_duration:
-                    logger.warning(f"Clip repeat interval {clip_repeat_interval} < clip duration {clip.play_duration}")
-            else:
-                raise NotImplemented()
+        clip_states = {}
+
+        while clip_start_at < s.end_at:
+            for i, p in enumerate(s.clip_paths):
+                prev_state: ScheduleClip = clip_states[p] if p in clip_states else None
+
+                clip_cursor_start_at = timedelta(0)
+
+                if clip_states:
+                    if not s.clip_restart_after_interruption:
+                        clip_cursor_start_at = prev_state.cursor_end_at
+                    if not s.clip_skip_time_after_interruption:
+                        clip_cursor_start_at = prev_state.cursor_end_at + (start_at - prev_state.end_at)
+
+                clip = await self._load_schedule_clip(
+                    p, clip_index=i, parent=s,
+                    clip_start_at=clip_start_at,
+                    clip_play_duration=clip_play_duration,
+                    clip_loop=s.clip_loop,
+                    clip_cursor_start_at=clip_cursor_start_at
+                )
+
+                if are_sequential:
+                    clip_start_at += clip.play_duration
+                elif are_cadenced:
+                    clip_start_at += clip_repeat_interval
+                    if clip_repeat_interval < clip.play_duration:
+                        logger.warning(
+                            f"Clip repeat interval {clip_repeat_interval} < clip duration {clip.play_duration}")
+                else:
+                    raise NotImplemented()
+            if not s.loop:
+                break
 
     async def _load_schedule_clip(self,
                                   clip_path: str,
@@ -107,7 +133,8 @@ class ScheduleBuilder:
                                   parent: ScheduleSource,
                                   clip_start_at: datetime,
                                   clip_play_duration: timedelta,
-                                  clip_loop: bool):
+                                  clip_loop: bool,
+                                  clip_cursor_start_at: timedelta):
         logger.debug(f"Add clip {clip_path}")
         assert clip_path
         assert parent
@@ -115,6 +142,8 @@ class ScheduleBuilder:
 
         clip_duration = video_duration(clip_path)
         clip_play_duration = clip_play_duration or clip_duration
+        clip_cursor_end_at = timedelta(seconds=math.fmod((clip_cursor_start_at + clip_play_duration).total_seconds(),
+                                                         clip_duration.total_seconds()))
 
         c = ScheduleClip(
             priority=parent.priority,
@@ -125,8 +154,8 @@ class ScheduleBuilder:
             duration=clip_duration,
             play_duration=clip_play_duration,
             loop=clip_loop,  # end_at can be after actual video end, thus loop it
-            cursor_start_at=timedelta(seconds=0),
-            cursor_end_at=clip_play_duration
+            cursor_start_at=clip_cursor_start_at,
+            cursor_end_at=clip_cursor_end_at
         )
 
         await self._all_prioritized_clips.put(c)
