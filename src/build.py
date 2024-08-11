@@ -153,12 +153,16 @@ class ScheduleBuilder:
         assert clip_start_at
         assert not clip_cursor_start_at or clip_cursor_start_at >= timedelta(0)
 
-
         clip_duration = video_duration(clip_path)
         clip_play_duration = clip_play_duration or clip_duration
+        clip_cursor_start_at = timedelta(seconds=math.fmod(clip_cursor_start_at.total_seconds(), clip_duration.total_seconds()))
         clip_cursor_end_at = timedelta(seconds=math.fmod((clip_cursor_start_at + clip_play_duration).total_seconds(),
                                                          clip_duration.total_seconds()))
-        clip_end_at = to_date(clip_play_duration, clip_start_at, default=None);
+        if clip_cursor_start_at.total_seconds() > clip_duration.total_seconds():
+            logger.warning(f"Cursor start > clip duration")
+        if clip_cursor_end_at.total_seconds() > clip_duration.total_seconds():
+            logger.warning(f"Cursor end > clip duration")
+        clip_end_at = to_date(clip_play_duration, clip_start_at, default=None)
         if clip_max_end_at:
             clip_end_at = min(clip_end_at, clip_max_end_at)
 
@@ -175,7 +179,8 @@ class ScheduleBuilder:
             cursor_end_at=clip_cursor_end_at
         )
 
-        logger.debug(f"Add clip {clip_path} start {c.start_at} end {c.end_at}, cursor start {c.cursor_start_at} end {c.cursor_end_at}")
+        logger.debug(
+            f"Add clip {clip_path} start {c.start_at} end {c.end_at}, cursor start {c.cursor_start_at} end {c.cursor_end_at}")
 
         await self._all_prioritized_clips.put(c)
         return c

@@ -46,6 +46,7 @@ class VideoScheduler:
             c.end_at = to_date(c.end_at)
             c.cursor_start_at = to_delta(c.cursor_start_at)
             c.cursor_end_at = to_delta(c.cursor_end_at)
+            c.duration = to_delta(c.duration)
             if (c.path not in VLC_PLAYLIST_FILE_REVERSE_INDEXES):
                 self.vlc_client.enqueue(c.path)
                 VLC_PLAYLIST_FILE_REVERSE_INDEXES[c.path] \
@@ -91,6 +92,8 @@ class VideoScheduler:
                 if clips_to_air:
                     clips_to_air.pop(0)
                 cursor = round((next_clip.cursor_start_at + (now - next_clip.start_at)).total_seconds())
+                if cursor > next_clip.duration.total_seconds():
+                    logger.warning(f"Cursor is bigger than duration")
                 logger.info(f"Play clip: {next_clip.path} seek={cursor}")
                 self.vlc_client.play(next_clip.vlc_playlist_id)
                 self.vlc_client.seek(cursor)
