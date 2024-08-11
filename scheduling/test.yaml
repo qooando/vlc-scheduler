@@ -1,13 +1,13 @@
 #start_at: "2024-08-10 00:00"
 #start_at: "01:00:00" # relative time or absolute iso "12s"
 #start_at: "1m"
-end_at: 2m
+end_at: 3m
 sources:
 #  - source: "./videos/background/**.mp4"
-  - source: "./videos/background/acqua.mp4"
+  - source: "./videos/long.mp4"
     priority: 100
 #    clip_play_duration: 10
-    loop: true
+#    loop: true
     #    end_at: 1m 2s
     #    clip_restart_after_interruption: true
     #    clip_continue_after_interruption: true
@@ -15,5 +15,6 @@ sources:
   - source: "./videos/timed/**.mp4"
     priority: 0
     start_at: 5
-    clip_play_duration: 7
+    clip_play_duration: 10s
+    clip_loop: true
 #    clip_play_duration: "00:00:15"

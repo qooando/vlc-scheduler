@@ -187,49 +187,74 @@ class ScheduleBuilder:
     async def process_schedule(self):
         await self.load_schedule_files()
 
-        p = self._all_prioritized_clips
-        s = self.schedule
+        prioritized = self._all_prioritized_clips
+        schedule = self.schedule
 
-        last_clip: ScheduleClip | None = None
-        while not p.empty():
-            to_insert: ScheduleClip = await p.get()
-            if not last_clip:
-                s.append(to_insert)
-                last_clip = s[-1]
+        _prev: ScheduleClip | None = None
+        while not prioritized.empty():
+            _next: ScheduleClip = await prioritized.get()
+            if not _prev:
+                schedule.append(_next)
+                _prev = schedule[-1]
                 continue
 
-            if to_insert.start_at < last_clip.start_at:
+            if _next.start_at < _prev.start_at:
                 raise ValueError(f"Clips are not ordered by increasing time")
-            if to_insert.start_at == last_clip.start_at:
-                if to_insert.priority < last_clip.priority:
+            if _next.start_at == _prev.start_at:
+                if _next.priority < _prev.priority:
                     raise ValueError(f"Clips are not ordered by increasing priority")
                 # ignore same priority and same time
                 continue
-            if to_insert.start_at < last_clip.end_at:
-                if to_insert.priority >= last_clip.priority:
-                    if to_insert.end_at <= last_clip.end_at:
+            if _next.start_at < _prev.end_at:
+                if _next.priority >= _prev.priority:
+                    if _next.end_at <= _prev.end_at:
                         # new clip is shorter and with lower priority, just skip
                         continue
-                    logger.debug(f"Crop low priority clip: {to_insert.path}")
-                    to_insert_parent: ScheduleSource = to_insert.parent
-                    old_start_at = to_insert_parent.start_at
-                    to_insert_parent.start_at = last_clip.start_at
-                    to_insert.play_duration = min(to_insert.play_duration, to_insert.end_at - to_insert.start_at)
-                    if to_insert_parent.clip_restart_after_interruption:
+                    logger.debug(f"Crop low priority clip: {_next.path}")
+                    _next_source: ScheduleSource = _next.parent
+                    _next_old_start_at = _next_source.start_at
+                    _next_source.start_at = _prev.start_at
+                    _next.play_duration = min(_next.play_duration, _next.end_at - _next.start_at)
+                    if _next_source.clip_restart_after_interruption:
                         pass
-                    elif to_insert_parent.clip_continue_after_interruption or to_insert_parent.clip_skip_time_after_interruption:
-                        to_insert.cursor_start_at = fmod_delta(
-                            to_insert.cursor_start_at + to_insert.start_at - old_start_at,
-                            to_insert.play_duration.total_seconds()
+                    elif (_next_source.clip_continue_after_interruption or
+                          _next_source.clip_skip_time_after_interruption):
+                        _next.cursor_start_at = fmod_delta(
+                            _next.cursor_start_at + _next.start_at - _next_old_start_at,
+                            _next.play_duration
                         )
-                    to_insert.cursor_end_at = to_insert.cursor_start_at + to_insert.play_duration
+                    _next.cursor_end_at = _next.cursor_start_at + _next.play_duration
+                    schedule.append(_next)
                 else:
-                    logger.debug(f"Crop high priority clip: {last_clip.path}")
-                    # FIXME
+                    logger.debug(f"Insert high priority clip: {_prev.path}")
+                    schedule.append(_next)
 
-            else:
-                s.append(to_insert)
-            last_clip = s[-1]
+                    # crop previous clip, eventually split it in two
+                    _prev_source: ScheduleSource = _prev.parent
+                    _clone = _prev.clone()
+
+                    crop_delta = _prev.end_at - _next.start_at
+                    logger.debug(f"Crop clip {_prev.path} end by {crop_delta}")
+                    _prev.crop_end_time(crop_delta)
+
+                    if not _prev_source.clip_stop_if_interrupted:
+                        # _clone.crop_start_time(_prev.play_duration)
+                        # _clone.change_start_time(_next.end_at)
+
+                        if _prev_source.clip_restart_after_interruption:
+                            _clone.change_cursor_start_at(timedelta(0))
+                            _clone.change_start_time(_next.end_at)
+
+                        elif _prev_source.clip_continue_after_interruption:
+                            _clone.crop_start_time(_prev.play_duration)
+                            _clone.change_start_time(_next.end_at)
+
+                        elif _prev_source.clip_skip_time_after_interruption:
+                            _clone.crop_start_time(_prev.play_duration + _next.play_duration)
+
+                        schedule.append(_clone)
+
+            _prev = schedule[-1]
 
     async def save_schedule(self):
         prio_level = self.config["scheduling"]["outPriorityLevel"]

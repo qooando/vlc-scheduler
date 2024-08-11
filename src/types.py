@@ -4,6 +4,8 @@ import typing
 
 import yaml
 
+from src.timeutils import fmod_delta
+
 
 def _next_index():
     INDEX = 0
@@ -45,6 +47,47 @@ class ScheduleClip:
         if self.start_at == other.start_at:
             return self.priority < other.priority
         return self.start_at < other.start_at
+
+    def change_start_time(self, new_start: datetime):
+        assert new_start
+        self.start_at = new_start
+        self.end_at = self.start_at + self.play_duration
+
+    def crop_start_time(self, delta: timedelta):
+        assert delta.total_seconds() >= 0
+        self.start_at = min(self.start_at + delta, self.end_at)
+        self.play_duration = min(self.play_duration, self.end_at - self.start_at)
+        self.cursor_start_at = min(self.cursor_start_at + delta, self.cursor_end_at)
+        self.cursor_end_at = self.cursor_start_at + self.play_duration
+
+    def crop_end_time(self, delta: timedelta):
+        assert delta.total_seconds() >= 0
+        self.end_at = max(self.start_at, self.end_at - delta)
+        self.play_duration = min(self.play_duration, self.end_at - self.start_at)
+        self.cursor_end_at = fmod_delta(self.cursor_start_at + self.play_duration, self.duration)
+
+    def change_cursor_start_at(self, new_cursor: timedelta):
+        self.cursor_start_at = new_cursor
+        self.cursor_end_at = self.cursor_start_at + self.play_duration
+
+    # def crop_cursor_start_at(self, delta: timedelta):
+    #     assert delta.total_seconds() >= 0
+    #     self.play_duration = max(timedelta(0), self.play_duration - delta)
+    #     self.cursor_start_at = self.cursor_end_at - self.play_duration
+    #     self.end_at = self.start_at + self.play_duration
+
+    # def change_play_duration(self, new_play_duration: timedelta):
+    #     self.play_duration = new_play_duration
+    #     self.end_at = self.start_at + self.play_duration
+    #     self.cursor_end_at = fmod_delta(self.cursor_start_at + self.play_duration, self.duration)
+    #
+    # def delta_play_duration(self, delta: timedelta):
+    #     self.play_duration = max(timedelta(0), self.play_duration + delta)
+    #     self.end_at = self.start_at + self.play_duration
+    #     self.cursor_end_at = fmod_delta(self.cursor_start_at + self.play_duration, self.duration)
+
+    def clone(self):
+        return ScheduleClip(**asdict(self))
 
 
 def _yaml_schedule_clip_representation(dumper, data: ScheduleClip):
