@@ -99,7 +99,8 @@ class ScheduleBuilder:
 
         clip_states = {}
 
-        while not s.loop or (s.loop and s.end_at and (not clip_end_at or clip_end_at < s.end_at)):
+        loop = s.loop
+        while not loop or (loop and s.end_at and (not clip_end_at or clip_end_at < s.end_at)):
             for i, p in enumerate(s.clip_paths):
                 prev_state: ScheduleClip = clip_states[p] if p in clip_states else None
 
@@ -113,6 +114,7 @@ class ScheduleBuilder:
                         assert clip_cursor_start_at >= timedelta(0)
 
                 if s.end_at and clip_start_at >= s.end_at:
+                    loop = False
                     break
 
                 clip = await self._load_schedule_clip(
@@ -136,7 +138,7 @@ class ScheduleBuilder:
                             f"Clip repeat interval {clip_repeat_interval} < clip duration {clip.play_duration}")
                 else:
                     raise NotImplemented()
-            if not s.loop:
+            if not loop:
                 break
 
     async def _load_schedule_clip(self,
