@@ -193,6 +193,8 @@ class ScheduleBuilder:
         _prev: ScheduleClip | None = None
         while not prioritized.empty():
             _next: ScheduleClip = await prioritized.get()
+            logger.debug(f"Reorder clip {_next.path}")
+
             if not _prev:
                 schedule.append(_next)
                 _prev = schedule[-1]
@@ -204,11 +206,13 @@ class ScheduleBuilder:
                 if _next.priority < _prev.priority:
                     raise ValueError(f"Clips are not ordered by increasing priority")
                 # ignore same priority and same time
+                logger.debug(f"Skip {_next.path}, same priority and time of _prev")
                 continue
             if _next.start_at < _prev.end_at:
                 if _next.priority >= _prev.priority:
                     if _next.end_at <= _prev.end_at:
                         # new clip is shorter and with lower priority, just skip
+                        logger.debug(f"Skip {_next.path}, an higher priority clip start and ends before and after the clip")
                         continue
                     logger.debug(f"Crop low priority clip: {_next.path}")
                     _next_source: ScheduleSource = _next.parent
@@ -253,6 +257,8 @@ class ScheduleBuilder:
                             _clone.crop_start_time(_prev.play_duration + _next.play_duration)
 
                         schedule.append(_clone)
+            elif _next:
+                schedule.append(_next)
 
             _prev = schedule[-1]
 
