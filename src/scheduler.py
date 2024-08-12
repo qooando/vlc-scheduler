@@ -13,7 +13,7 @@ import logging
 from src import build
 from src.config import ALL_YAML_FILE, CONFIGFILE, VLC_PLAYLIST_FILE_REVERSE_INDEXES, VLC_PLAYLIST_INDEX_OFFSET
 from src.timeutils import to_date, to_delta
-from src.types import ScheduleClip, ScheduleFile, ScheduleSource
+from src.scheduler_types import ScheduleClip, ScheduleFile, ScheduleSource
 from vlc import VLCLauncher, VLCHTTPClient
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')

@@ -14,7 +14,7 @@ import logging
 
 from src.config import ALL_YAML_FILE, FILTERED_YAML_FILE, FILTERED_CSV_FILE
 from src.timeutils import to_delta, to_date, video_duration, fmod_delta
-from src.types import ScheduleFile, ScheduleSource, ScheduleClip
+from src.scheduler_types import ScheduleFile, ScheduleSource, ScheduleClip
 from vlc import VLCLauncher, VLCHTTPClient
 
 CONFIGFILE = os.getenv('CONFIG') or "config.yaml"
