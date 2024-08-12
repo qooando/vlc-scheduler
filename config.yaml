@@ -9,7 +9,8 @@ vlc:
     #    - "--start-paused"
     #    - "--fullscreen"
   path:
-    win: 'C:\Program Files\VideoLAN\VLC\vlc.exe'
+    #    win: 'C:\Program Files\VideoLAN\VLC\vlc.exe'
+    win: 'C:\Program Files (x86)\VideoLAN\VLC\vlc.exe'
     macos: '/Applications/VLC.app/Contents/MacOS/VLC'
     linux: '/usr/bin/vlc'
 scheduling:

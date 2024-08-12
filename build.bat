@@ -1,3 +1,3 @@
 setlocal
 set PYTHONPATH=.
-python src/main.py
+python src/build.py

@@ -56,7 +56,9 @@ def to_delta(data, start_date=datetime.now(), default=timedelta(seconds=0)):
 def video_duration(path):
     from moviepy.editor import VideoFileClip
     clip = VideoFileClip(path)
-    return timedelta(seconds=clip.duration)
+    result = timedelta(seconds=clip.duration)
+    clip.close()
+    return result
 
     # cap = cv2.VideoCapture(path)
     # fps = cap.get(cv2.CAP_PROP_FPS)  # OpenCV v2.x used "CV_CAP_PROP_FPS"
