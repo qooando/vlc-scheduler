@@ -1,6 +1,7 @@
 import os
 
 FILTERED_CSV_FILE = "scheduled.filtered.csv"
+ALL_CSV_FILE = "scheduled.all.csv"
 FILTERED_YAML_FILE = "scheduled.filtered.yaml"
 ALL_YAML_FILE = "scheduled.all.yaml"
 VLC_PLAYLIST_INDEX_OFFSET = 3

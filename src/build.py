@@ -12,7 +12,7 @@ from dataclasses import dataclass, Field, field, asdict, replace
 import yaml
 import logging
 
-from src.config import ALL_YAML_FILE, FILTERED_YAML_FILE, FILTERED_CSV_FILE
+from src.config import ALL_YAML_FILE, FILTERED_YAML_FILE, FILTERED_CSV_FILE, ALL_CSV_FILE
 from src.timeutils import to_delta, to_date, video_duration, fmod_delta
 from src.scheduler_types import ScheduleFile, ScheduleSource, ScheduleClip
 from vlc import VLCLauncher, VLCHTTPClient
@@ -295,6 +295,17 @@ class ScheduleBuilder:
             for s in self.schedule:
                 if s.priority <= prio_level:
                     w.writerow([s.start_at, s.duration, s.path])
+
+        path = os.path.join(outPath, ALL_CSV_FILE)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', newline='') as csvfile:
+            w = csv.writer(csvfile,
+                           delimiter=',',
+                           quotechar='"',
+                           quoting=csv.QUOTE_MINIMAL)
+            w.writerow(['start_at', 'duration', 'path'])
+            for s in self.schedule:
+                w.writerow([s.start_at, s.duration, s.path])
 
 
 async def main():
