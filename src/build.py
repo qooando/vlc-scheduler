@@ -203,7 +203,11 @@ class ScheduleBuilder:
                 continue
 
             if _next.start_at < _prev.start_at:
-                raise ValueError(f"Clips are not ordered by increasing time")
+                logger.debug(f"Clips are not ordered by increasing time: {_next.start_at} < {_prev.start_at}")
+                schedule.pop()
+                _prev = schedule[-1]
+                continue
+
             if _next.start_at == _prev.start_at:
                 if _next.priority < _prev.priority:
                     raise ValueError(f"Clips are not ordered by increasing priority")
