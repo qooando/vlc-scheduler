@@ -237,6 +237,10 @@ class ScheduleBuilder:
 
                     # crop previous clip, eventually split it in two
                     _prev_source: ScheduleSource = _prev.parent
+
+                    if isinstance(_prev_source, dict):
+                        _prev_source = ScheduleSource(**_prev_source)
+
                     _clone = _prev.clone()
 
                     crop_delta = _prev.end_at - _next.start_at
