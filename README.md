@@ -8,12 +8,6 @@ A python-based vlc scheduler for local videos. It was inspired by https://github
 - Play sequential stream, interrupt them with timed events
 - Schedule and play video at specific times
 
-### TODO
-
-- [ ] Repeat group up to N times
-- [ ] Repeat every clip up to N times
-- [ ] Improve performance
-
 ## Fast start (linux)
 
 Call
